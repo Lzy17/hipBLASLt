@@ -2,7 +2,7 @@
  *
  * MIT License
  *
- * Copyright (C) 2022-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -53,7 +53,7 @@ namespace Tensile
             virtual void preBenchmarkRun() override;
             virtual void postBenchmarkRun() override;
 
-            virtual void preProblem(ContractionProblem* const problem) override;
+            virtual void preProblem(ContractionProblem const& problem) override;
             virtual void postProblem() override;
 
             virtual void preSolution(ContractionSolution const& solution) override;
@@ -65,9 +65,9 @@ namespace Tensile
             virtual void   setNumWarmupRuns(size_t count) override;
             virtual void   preWarmup() override;
             virtual void   postWarmup() override;
-            virtual void   validateWarmups(std::shared_ptr<ProblemInputs> inputs,
-                                           TimingEvents const&            startEvents,
-                                           TimingEvents const&            stopEvents) override;
+            virtual void   validateWarmups(std::shared_ptr<ContractionInputs> inputs,
+                                           TimingEvents const&                startEvents,
+                                           TimingEvents const&                stopEvents) override;
 
             virtual size_t numSyncs() override;
             virtual void   setNumSyncs(size_t count) override;
@@ -80,9 +80,9 @@ namespace Tensile
             virtual void   postEnqueues(TimingEvents const& startEvents,
                                         TimingEvents const& stopEvents,
                                         hipStream_t const&  stream) override;
-            virtual void   validateEnqueues(std::shared_ptr<ProblemInputs> inputs,
-                                            TimingEvents const&            startEvents,
-                                            TimingEvents const&            stopEvents) override;
+            virtual void   validateEnqueues(std::shared_ptr<ContractionInputs> inputs,
+                                            TimingEvents const&                startEvents,
+                                            TimingEvents const&                stopEvents) override;
 
             virtual void finalizeReport() override;
             virtual int  error() const override;
@@ -103,7 +103,7 @@ namespace Tensile
             int m_numBenchmarksRun = 0;
 
             Hardware const&     m_hardware;
-            ContractionProblem* m_problem;
+            ContractionProblem  m_problem;
             ContractionSolution m_solution;
 
             int m_numEnqueuesInSolution = 0;

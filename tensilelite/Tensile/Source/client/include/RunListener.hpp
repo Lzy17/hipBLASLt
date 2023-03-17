@@ -2,7 +2,7 @@
  *
  * MIT License
  *
- * Copyright (C) 2022-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -68,7 +68,8 @@ namespace Tensile
    **********/
 
             /// Called at the beginning of each problem.
-            virtual void preProblem(ContractionProblem* const problem) = 0;
+            virtual void preProblem(ContractionProblem const& problem) = 0;
+            virtual void preProblemGroupedGemm(std::vector<ContractionProblem> const& problems){};
 
             /// Called at end of each problem.
             virtual void postProblem() = 0;
@@ -98,9 +99,9 @@ namespace Tensile
             virtual void   setNumWarmupRuns(size_t count) = 0;
             virtual void   preWarmup()                    = 0;
             virtual void   postWarmup()                   = 0;
-            virtual void   validateWarmups(std::shared_ptr<ProblemInputs> inputs,
-                                           TimingEvents const&            startEvents,
-                                           TimingEvents const&            stopEvents)
+            virtual void   validateWarmups(std::shared_ptr<ContractionInputs> inputs,
+                                           TimingEvents const&                startEvents,
+                                           TimingEvents const&                stopEvents)
                 = 0;
 
             virtual size_t numSyncs()                = 0;
@@ -115,9 +116,9 @@ namespace Tensile
                                         TimingEvents const& stopEvents,
                                         hipStream_t const&  stream)
                 = 0;
-            virtual void validateEnqueues(std::shared_ptr<ProblemInputs> inputs,
-                                          TimingEvents const&            startEvents,
-                                          TimingEvents const&            stopEvents)
+            virtual void validateEnqueues(std::shared_ptr<ContractionInputs> inputs,
+                                          TimingEvents const&                startEvents,
+                                          TimingEvents const&                stopEvents)
                 = 0;
 
             /// Called at end of program execution.  Print out a summary of the runs.

@@ -2,7 +2,7 @@
  *
  * MIT License
  *
- * Copyright (C) 2022-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -83,7 +83,7 @@ namespace Tensile
                 (*iter)->postBenchmarkRun();
         }
 
-        void MetaRunListener::preProblem(ContractionProblem* const problem)
+        void MetaRunListener::preProblem(ContractionProblem const& problem)
         {
             for(auto iter = m_listeners.begin(); iter != m_listeners.end(); iter++)
                 (*iter)->preProblem(problem);
@@ -145,9 +145,9 @@ namespace Tensile
                 (*iter)->postWarmup();
         }
 
-        void MetaRunListener::validateWarmups(std::shared_ptr<ProblemInputs> inputs,
-                                              TimingEvents const&            startEvents,
-                                              TimingEvents const&            stopEvents)
+        void MetaRunListener::validateWarmups(std::shared_ptr<ContractionInputs> inputs,
+                                              TimingEvents const&                startEvents,
+                                              TimingEvents const&                stopEvents)
         {
             for(auto iter = m_listeners.begin(); iter != m_listeners.end(); iter++)
                 (*iter)->validateWarmups(inputs, startEvents, stopEvents);
@@ -213,9 +213,9 @@ namespace Tensile
                 (*iter)->postEnqueues(startEvents, stopEvents, stream);
         }
 
-        void MetaRunListener::validateEnqueues(std::shared_ptr<ProblemInputs> inputs,
-                                               TimingEvents const&            startEvents,
-                                               TimingEvents const&            stopEvents)
+        void MetaRunListener::validateEnqueues(std::shared_ptr<ContractionInputs> inputs,
+                                               TimingEvents const&                startEvents,
+                                               TimingEvents const&                stopEvents)
         {
             for(auto iter = m_listeners.begin(); iter != m_listeners.end(); iter++)
                 (*iter)->validateEnqueues(inputs, startEvents, stopEvents);

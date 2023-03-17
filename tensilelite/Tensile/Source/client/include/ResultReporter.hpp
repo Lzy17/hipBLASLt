@@ -2,7 +2,7 @@
  *
  * MIT License
  *
- * Copyright (C) 2022-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -165,19 +165,11 @@ namespace Tensile
                 reportValue_sizes(key, value);
             }
 
-            void report(std::string const& key, std::vector<std::vector<size_t>> const& value)
-            {
-                reportValue_vecOfSizes(key, value);
-            }
-
             virtual void reportValue_string(std::string const& key, std::string const& value) = 0;
             virtual void reportValue_uint(std::string const& key, uint64_t value)             = 0;
             virtual void reportValue_int(std::string const& key, int64_t value)               = 0;
             virtual void reportValue_double(std::string const& key, double value)             = 0;
             virtual void reportValue_sizes(std::string const& key, std::vector<size_t> const& value)
-                = 0;
-            virtual void reportValue_vecOfSizes(std::string const&                      key,
-                                                std::vector<std::vector<size_t>> const& value)
                 = 0;
 
             virtual bool logAtLevel(LogLevel level)
@@ -220,7 +212,7 @@ namespace Tensile
             virtual void preBenchmarkRun() override {}
             virtual void postBenchmarkRun() override {}
 
-            virtual void preProblem(ContractionProblem* const problem) override {}
+            virtual void preProblem(ContractionProblem const& problem) override {}
             virtual void postProblem() override {}
 
             virtual void preSolution(ContractionSolution const& solution) override {}
@@ -238,9 +230,9 @@ namespace Tensile
             virtual void setNumWarmupRuns(size_t count) override {}
             virtual void preWarmup() override {}
             virtual void postWarmup() override {}
-            virtual void validateWarmups(std::shared_ptr<ProblemInputs> inputs,
-                                         TimingEvents const&            startEvents,
-                                         TimingEvents const&            stopEvents) override
+            virtual void validateWarmups(std::shared_ptr<ContractionInputs> inputs,
+                                         TimingEvents const&                startEvents,
+                                         TimingEvents const&                stopEvents) override
             {
             }
 
@@ -263,9 +255,9 @@ namespace Tensile
                                       hipStream_t const&  stream) override
             {
             }
-            virtual void validateEnqueues(std::shared_ptr<ProblemInputs> inputs,
-                                          TimingEvents const&            startEvents,
-                                          TimingEvents const&            stopEvents) override
+            virtual void validateEnqueues(std::shared_ptr<ContractionInputs> inputs,
+                                          TimingEvents const&                startEvents,
+                                          TimingEvents const&                stopEvents) override
             {
             }
 

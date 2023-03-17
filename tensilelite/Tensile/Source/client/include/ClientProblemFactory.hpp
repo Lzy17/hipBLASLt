@@ -27,6 +27,7 @@
 #pragma once
 
 #include <Tensile/Activation.hpp>
+#include <Tensile/ArithmeticUnitTypes.hpp>
 #include <Tensile/ContractionProblem.hpp>
 #include <Tensile/KernelLanguageTypes.hpp>
 #include <Tensile/Tensile.hpp>
@@ -48,38 +49,42 @@ namespace Tensile
             ClientProblemFactory(po::variables_map const& args);
             ~ClientProblemFactory();
 
-            std::vector<std::shared_ptr<ContractionProblem>> const& problems() const;
-
-            size_t workspaceSize() const
+            ClientProblemFactory(ContractionProblem const& problem)
+                : m_problems({problem})
             {
-                return m_maxWorkspaceSize;
             }
 
+            template <typename Iterator>
+            ClientProblemFactory(Iterator begin, Iterator end)
+                : m_problems(begin, end)
+            {
+            }
+
+            std::vector<ContractionProblem> const& problems() const;
+
+            std::vector<ContractionProblem> createProblems();
+
         private:
-            void createProblems(std::vector<ContractionProblemGemm>& rv);
+            std::vector<ContractionProblem> m_problems;
 
-            std::vector<std::shared_ptr<ContractionProblem>> m_problems;
+            ContractionProblem::FreeIndices  m_freeIndices;
+            ContractionProblem::BatchIndices m_batchIndices;
+            ContractionProblem::BoundIndices m_boundIndices;
 
-            ContractionProblemGemm::FreeIndices  m_freeIndices;
-            ContractionProblemGemm::BatchIndices m_batchIndices;
-            ContractionProblemGemm::BoundIndices m_boundIndices;
-
-            std::vector<DataType>                         m_tensorTypes;
-            std::vector<std::vector<std::vector<size_t>>> m_tensorStrides;
-            std::vector<size_t>                           m_tensorOffsets;
-
-            std::vector<DataType> m_constantTypes;
-            std::vector<double>   m_constantValues;
-
-            bool m_stridedBatched;
-            bool m_groupedGemm;
-            bool m_highPrecisionAccumulate;
-            bool m_deterministicMode;
-            bool m_cEqualsD;
-            bool m_useBias;
-            bool m_useScaleD;
-            bool m_useE;
-
+            DataType                    m_aType;
+            DataType                    m_bType;
+            DataType                    m_cType;
+            DataType                    m_dType;
+            DataType                    m_alphaType;
+            DataType                    m_betaType;
+            bool                        m_stridedBatched;
+            bool                        m_groupedGemm;
+            bool                        m_highPrecisionAccumulate;
+            bool                        m_deterministicMode;
+            bool                        m_cEqualsD;
+            bool                        m_useBias;
+            bool                        m_useScaleD;
+            ArithmeticUnit              m_arithmeticUnit;
             KernelLanguage              m_kernelLanguage;
             PerformanceMetric           m_performanceMetric;
             bool                        m_fp16AltImpl;
@@ -90,6 +95,23 @@ namespace Tensile
             size_t                      m_maxWorkspaceSize = 0;
 
             std::vector<std::vector<size_t>> m_problemSizes;
+            std::vector<std::vector<size_t>> m_aStrides;
+            std::vector<std::vector<size_t>> m_bStrides;
+            std::vector<std::vector<size_t>> m_cStrides;
+            std::vector<std::vector<size_t>> m_dStrides;
+
+            TensorOps m_aOps;
+            TensorOps m_bOps;
+            TensorOps m_cOps;
+            TensorOps m_dOps;
+
+            size_t m_aOffset;
+            size_t m_bOffset;
+            size_t m_cOffset;
+            size_t m_dOffset;
+
+            double m_beta;
+            double m_alpha;
         };
 
     } // namespace Client

@@ -2,7 +2,7 @@
  *
  * MIT License
  *
- * Copyright (C) 2022-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -56,8 +56,9 @@ namespace Tensile
             m_benchmarkRun++;
         }
 
-        void ProgressListener::writeReport(ContractionProblemGemm const& problem)
+        void ProgressListener::preProblem(ContractionProblem const& problem)
         {
+
             m_reporter->report(ResultKey::OperationIdentifier, problem.operationIdentifier());
 
             m_reporter->report(ResultKey::TotalFlops, problem.flopCount());
@@ -77,6 +78,7 @@ namespace Tensile
             m_reporter->report(ResultKey::LDC, problem.c().strides()[1]);
             m_reporter->report(ResultKey::LDD, problem.d().strides()[1]);
 
+            m_reporter->report(ResultKey::ProblemSizes, problem.problemSizes());
             if(problem.useBias())
             {
                 m_reporter->report(ResultKey::BiasType, ToString(problem.biasType()));
@@ -86,27 +88,6 @@ namespace Tensile
                 m_reporter->report(ResultKey::BiasType, "None");
             }
             m_reporter->report(ResultKey::ActivationType, ToString(problem.activationEnumArg()));
-        }
-
-        void ProgressListener::preProblem(ContractionProblem* const problem)
-        {
-            if(auto groupedProblem = dynamic_cast<const ContractionProblemGroupedGemm*>(problem))
-            {
-                writeReport(groupedProblem->gemms[0]);
-                std::vector<std::vector<size_t>> sizes;
-                for(auto& it : groupedProblem->gemms)
-                    sizes.push_back(it.problemSizes());
-                m_reporter->report(ResultKey::ProblemSizes, sizes);
-            }
-            else if(auto gemmProblem = dynamic_cast<const ContractionProblemGemm*>(problem))
-            {
-                writeReport(*gemmProblem);
-                m_reporter->report(ResultKey::ProblemSizes, gemmProblem->problemSizes());
-            }
-            else
-            {
-                throw std::runtime_error("Failed to cast to any ContractionProblem.");
-            }
         }
 
         void ProgressListener::postProblem() {}
@@ -135,9 +116,9 @@ namespace Tensile
 
         void ProgressListener::postWarmup() {}
 
-        void ProgressListener::validateWarmups(std::shared_ptr<ProblemInputs> inputs,
-                                               TimingEvents const&            startEvents,
-                                               TimingEvents const&            stopEvents)
+        void ProgressListener::validateWarmups(std::shared_ptr<ContractionInputs> inputs,
+                                               TimingEvents const&                startEvents,
+                                               TimingEvents const&                stopEvents)
         {
         }
 
@@ -167,9 +148,9 @@ namespace Tensile
         {
         }
 
-        void ProgressListener::validateEnqueues(std::shared_ptr<ProblemInputs> inputs,
-                                                TimingEvents const&            startEvents,
-                                                TimingEvents const&            stopEvents)
+        void ProgressListener::validateEnqueues(std::shared_ptr<ContractionInputs> inputs,
+                                                TimingEvents const&                startEvents,
+                                                TimingEvents const&                stopEvents)
         {
             struct timeval tmnow;
             struct tm*     tm;

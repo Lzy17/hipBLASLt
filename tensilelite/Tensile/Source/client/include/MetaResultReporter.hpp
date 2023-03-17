@@ -2,7 +2,7 @@
  *
  * MIT License
  *
- * Copyright (C) 2022-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -75,14 +75,6 @@ namespace Tensile
                     r->reportValue_sizes(key, value);
             }
 
-            virtual void
-                reportValue_vecOfSizes(std::string const&                      key,
-                                       std::vector<std::vector<size_t>> const& value) override
-            {
-                for(auto r : m_reporters)
-                    r->reportValue_vecOfSizes(key, value);
-            }
-
             virtual bool logAtLevel(LogLevel level) override
             {
                 for(auto r : m_reporters)
@@ -130,7 +122,7 @@ namespace Tensile
                     (*iter)->postBenchmarkRun();
             }
 
-            virtual void preProblem(ContractionProblem* const problem) override
+            virtual void preProblem(ContractionProblem const& problem) override
             {
                 for(auto iter = m_reporters.begin(); iter != m_reporters.end(); iter++)
                     (*iter)->preProblem(problem);
@@ -185,9 +177,9 @@ namespace Tensile
                     (*iter)->postWarmup();
             }
 
-            virtual void validateWarmups(std::shared_ptr<ProblemInputs> inputs,
-                                         TimingEvents const&            startEvents,
-                                         TimingEvents const&            stopEvents) override
+            virtual void validateWarmups(std::shared_ptr<ContractionInputs> inputs,
+                                         TimingEvents const&                startEvents,
+                                         TimingEvents const&                stopEvents) override
             {
                 for(auto iter = m_reporters.begin(); iter != m_reporters.end(); iter++)
                     (*iter)->validateWarmups(inputs, startEvents, stopEvents);
@@ -240,9 +232,9 @@ namespace Tensile
                     (*iter)->postEnqueues(startEvents, stopEvents, stream);
             }
 
-            virtual void validateEnqueues(std::shared_ptr<ProblemInputs> inputs,
-                                          TimingEvents const&            startEvents,
-                                          TimingEvents const&            stopEvents) override
+            virtual void validateEnqueues(std::shared_ptr<ContractionInputs> inputs,
+                                          TimingEvents const&                startEvents,
+                                          TimingEvents const&                stopEvents) override
             {
                 for(auto iter = m_reporters.begin(); iter != m_reporters.end(); iter++)
                     (*iter)->validateEnqueues(inputs, startEvents, stopEvents);

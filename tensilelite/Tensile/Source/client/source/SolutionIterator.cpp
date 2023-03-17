@@ -2,7 +2,7 @@
  *
  * MIT License
  *
- * Copyright (C) 2022-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -34,18 +34,17 @@ namespace Tensile
     namespace Client
     {
         std::shared_ptr<SolutionIterator> SolutionIterator::Default(
-            std::shared_ptr<MasterSolutionLibrary<ContractionProblemGemm>> library,
-            std::shared_ptr<Hardware>                                      hardware,
-            po::variables_map const&                                       args)
+            std::shared_ptr<MasterSolutionLibrary<ContractionProblem>> library,
+            std::shared_ptr<Hardware>                                  hardware,
+            po::variables_map const&                                   args)
         {
             bool bestSolution     = args["best-solution"].as<bool>();
             int  gridbasedTopSols = Debug::Instance().getGridbasedTopSols();
-            bool printWinnerOnly  = args["PrintWinnersOnly"].as<bool>();
+            bool printWinnerOnly = args["PrintWinnersOnly"].as<bool>();
 
             if(bestSolution)
             {
-                return std::make_shared<TopSolutionIterator>(
-                    library, hardware, gridbasedTopSols, printWinnerOnly);
+                return std::make_shared<TopSolutionIterator>(library, hardware, gridbasedTopSols, printWinnerOnly);
             }
             else
             {
@@ -63,73 +62,95 @@ namespace Tensile
         }
 
         SolutionIterator::SolutionIterator(
-            std::shared_ptr<MasterSolutionLibrary<ContractionProblemGemm>> library,
-            std::shared_ptr<Hardware>                                      hardware,
-            bool                                                           printWinnerOnly)
+            std::shared_ptr<MasterSolutionLibrary<ContractionProblem>> library,
+            std::shared_ptr<Hardware>                                  hardware,
+            bool                                                       printWinnerOnly)
             : m_library(library)
             , m_hardware(hardware)
             , m_printWinnerOnly(printWinnerOnly)
         {
         }
 
-        void SolutionIterator::preProblem(ContractionProblem* const problem)
+        void SolutionIterator::preProblem(ContractionProblem const& problem)
         {
             m_problem = problem;
         }
 
-        bool SolutionIterator::checkSolution(ContractionSolution const& solution,
-                                             ContractionProblemGemm&    problem)
+        void SolutionIterator::preProblemGroupedGemm(std::vector<ContractionProblem> const& problems)
         {
-            if(!(*solution.hardwarePredicate)(*m_hardware))
-            {
-                m_reporter->report(ResultKey::Validation, "WRONG_HARDWARE");
-                if(m_reporter->logAtLevel(LogLevel::Verbose))
-                {
-                    std::ostringstream msg;
-                    solution.hardwarePredicate->debugEval(*m_hardware, msg);
-                    msg << std::endl;
-                    m_reporter->log(LogLevel::Verbose, msg.str());
-                }
-
-                return false;
-            }
-
-            // Test if the persistent kernel is eligible for the current hw and solution
-            problem.checkPersistentKernelEligibility(solution, *m_hardware);
-            if(!(*solution.problemPredicate)(problem))
-            {
-                m_reporter->report(ResultKey::Validation, "DID_NOT_SATISFY_ASSERTS");
-                if(m_reporter->logAtLevel(LogLevel::Verbose) && !m_printWinnerOnly)
-                {
-                    std::ostringstream msg;
-                    solution.problemPredicate->debugEval(problem, msg);
-                    msg << std::endl;
-                    m_reporter->log(LogLevel::Verbose, msg.str());
-                }
-
-                return false;
-            }
-            return true;
+            m_problems = problems;
+            m_groupedGemm = true;
         }
 
         bool SolutionIterator::checkSolution(ContractionSolution const& solution)
         {
-            if(auto problems = dynamic_cast<ContractionProblemGroupedGemm*>(m_problem))
+            if(m_groupedGemm)
             {
-                for(int idx = 0; idx < problems->gemms.size(); idx++)
+                for(int idx = 0; idx < m_problems.size(); idx++)
                 {
-                    if(!checkSolution(solution, problems->gemms[idx]))
+                    auto problem = m_problems[idx];
+                    if(!(*solution.hardwarePredicate)(*m_hardware))
+                    {
+                        m_reporter->report(ResultKey::Validation, "WRONG_HARDWARE");
+                        if(m_reporter->logAtLevel(LogLevel::Verbose))
+                        {
+                            std::ostringstream msg;
+                            solution.hardwarePredicate->debugEval(*m_hardware, msg);
+                            msg << std::endl;
+                            m_reporter->log(LogLevel::Verbose, msg.str());
+                        }
+
                         return false;
+                    }
+
+                    // Test if the persistent kernel is eligible for the current hw and solution
+                    problem.checkPersistentKernelEligibility(solution, *m_hardware);
+                    if(!(*solution.problemPredicate)(problem))
+                    {
+                        m_reporter->report(ResultKey::Validation, "DID_NOT_SATISFY_ASSERTS");
+                        if(m_reporter->logAtLevel(LogLevel::Verbose) && !m_printWinnerOnly)
+                        {
+                            std::ostringstream msg;
+                            solution.problemPredicate->debugEval(problem, msg);
+                            msg << std::endl;
+                            m_reporter->log(LogLevel::Verbose, msg.str());
+                        }
+
+                        return false;
+                    }
                 }
-            }
-            else if(auto problem = dynamic_cast<ContractionProblemGemm*>(m_problem))
-            {
-                return checkSolution(solution, *problem);
             }
             else
             {
-                throw std::runtime_error(
-                    "[SolutionIterator] Failed to cast to any ContractionProblem");
+                if(!(*solution.hardwarePredicate)(*m_hardware))
+                {
+                    m_reporter->report(ResultKey::Validation, "WRONG_HARDWARE");
+                    if(m_reporter->logAtLevel(LogLevel::Verbose))
+                    {
+                        std::ostringstream msg;
+                        solution.hardwarePredicate->debugEval(*m_hardware, msg);
+                        msg << std::endl;
+                        m_reporter->log(LogLevel::Verbose, msg.str());
+                    }
+
+                    return false;
+                }
+
+                // Test if the persistent kernel is eligible for the current hw and solution
+                m_problem.checkPersistentKernelEligibility(solution, *m_hardware);
+                if(!(*solution.problemPredicate)(m_problem))
+                {
+                    m_reporter->report(ResultKey::Validation, "DID_NOT_SATISFY_ASSERTS");
+                    if(m_reporter->logAtLevel(LogLevel::Verbose) && !m_printWinnerOnly)
+                    {
+                        std::ostringstream msg;
+                        solution.problemPredicate->debugEval(m_problem, msg);
+                        msg << std::endl;
+                        m_reporter->log(LogLevel::Verbose, msg.str());
+                    }
+
+                    return false;
+                }
             }
 
             return true;
@@ -142,18 +163,18 @@ namespace Tensile
         }
 
         AllSolutionsIterator::RunCriteria AllSolutionsIterator::CreateCriteria(
-            std::shared_ptr<MasterSolutionLibrary<ContractionProblemGemm>> library,
-            std::shared_ptr<Hardware>                                      hardware,
-            po::variables_map const&                                       args)
+            std::shared_ptr<MasterSolutionLibrary<ContractionProblem>> library,
+            std::shared_ptr<Hardware>                                  hardware,
+            po::variables_map const&                                   args)
         {
             RunCriteria criteria;
 
             double granThresh = args["granularity-threshold"].as<double>();
             if(granThresh > 0.0)
             {
-                criteria.push_back([granThresh](ContractionProblemGemm const& problem,
-                                                Hardware const&               hardware,
-                                                ContractionSolution const&    solution) {
+                criteria.push_back([granThresh](ContractionProblem const&  problem,
+                                                Hardware const&            hardware,
+                                                ContractionSolution const& solution) {
                     auto projPerf = solution.projectedPerformance(problem, hardware);
                     return projPerf.granularities.totalGranularity >= granThresh;
                 });
@@ -162,12 +183,12 @@ namespace Tensile
         }
 
         AllSolutionsIterator::AllSolutionsIterator(
-            std::shared_ptr<MasterSolutionLibrary<ContractionProblemGemm>> library,
-            std::shared_ptr<Hardware>                                      hardware,
-            int                                                            firstSolutionIdx,
-            int                                                            numSolutions,
-            bool                                                           printWinnerOnly,
-            RunCriteria                                                    runCriteria)
+            std::shared_ptr<MasterSolutionLibrary<ContractionProblem>> library,
+            std::shared_ptr<Hardware>                                  hardware,
+            int                                                        firstSolutionIdx,
+            int                                                        numSolutions,
+            bool                                                       printWinnerOnly,
+            RunCriteria                                                runCriteria)
             : SolutionIterator(library, hardware, printWinnerOnly)
             , m_runCriteria(runCriteria)
         {
@@ -189,7 +210,7 @@ namespace Tensile
             m_currentSolutionIdx = m_firstSolutionIdx;
         }
 
-        void AllSolutionsIterator::preProblem(ContractionProblem* const problem)
+        void AllSolutionsIterator::preProblem(ContractionProblem const& problem)
         {
             SolutionIterator::preProblem(problem);
 
@@ -234,51 +255,25 @@ namespace Tensile
 
             for(auto const& criterion : m_runCriteria)
             {
-                if(auto problem = dynamic_cast<ContractionProblemGroupedGemm*>(m_problem))
-                {
-                    if(!criterion(problem->gemms[0], *m_hardware, *solution))
-                        return false;
-                }
-                else if(auto problem = dynamic_cast<ContractionProblemGemm*>(m_problem))
-                {
-                    if(!criterion(*problem, *m_hardware, *solution))
-                        return false;
-                }
-                else
-                {
-                    std::cout << "Failed to cast problem to any ContractionProblem.";
+                if(!criterion(m_problem, *m_hardware, *solution))
                     return false;
-                }
             }
             return true;
         }
 
         BestSolutionIterator::BestSolutionIterator(
-            std::shared_ptr<MasterSolutionLibrary<ContractionProblemGemm>> library,
-            std::shared_ptr<Hardware>                                      hardware,
-            bool                                                           printWinnerOnly)
+            std::shared_ptr<MasterSolutionLibrary<ContractionProblem>> library,
+            std::shared_ptr<Hardware>                                  hardware,
+            bool                                                       printWinnerOnly)
             : SolutionIterator(library, hardware, printWinnerOnly)
         {
         }
 
-        void BestSolutionIterator::preProblem(ContractionProblem* const problem)
+        void BestSolutionIterator::preProblem(ContractionProblem const& problem)
         {
             SolutionIterator::preProblem(problem);
-            if(auto groupedProblem = dynamic_cast<const ContractionProblemGroupedGemm*>(problem))
-            {
-                m_currentSolution
-                    = m_library->findBestSolution(groupedProblem->gemms[0], *m_hardware);
-            }
-            else if(auto gemmProblem = dynamic_cast<const ContractionProblemGemm*>(problem))
-            {
-                m_currentSolution = m_library->findBestSolution(*gemmProblem, *m_hardware);
-            }
-            else
-            {
-                throw std::runtime_error(
-                    "[BestSolutionIterator] Failed to cast to any ContractionProblem");
-            }
-            if(m_currentSolution == nullptr)
+            m_currentSolution     = m_library->findBestSolution(m_problem, *m_hardware);
+            if (m_currentSolution == nullptr)
             {
                 m_currentSolution = m_library->solutions.find(0)->second;
             }
@@ -310,34 +305,31 @@ namespace Tensile
         }
 
         TopSolutionIterator::TopSolutionIterator(
-            std::shared_ptr<MasterSolutionLibrary<ContractionProblemGemm>> library,
-            std::shared_ptr<Hardware>                                      hardware,
-            int                                                            numSolutions,
-            bool                                                           printWinnerOnly)
+            std::shared_ptr<MasterSolutionLibrary<ContractionProblem>> library,
+            std::shared_ptr<Hardware>                                  hardware,
+            int                                                        numSolutions,
+            bool                                                       printWinnerOnly)
             : SolutionIterator(library, hardware, printWinnerOnly)
             , m_numSolutions(numSolutions)
         {
         }
 
-        void TopSolutionIterator::preProblem(ContractionProblem* const problem)
+        void TopSolutionIterator::preProblem(ContractionProblem const& problem)
         {
             SolutionIterator::preProblem(problem);
-            if(auto groupedProblem = dynamic_cast<const ContractionProblemGroupedGemm*>(problem))
+            m_solutions = m_library->findTopSolutions(m_problem, *m_hardware, m_numSolutions);
+            if (m_solutions.size() == 0)
             {
-                m_solutions = m_library->findTopSolutionsGroupedGemm(
-                    groupedProblem->gemms, *m_hardware, m_numSolutions);
+                m_solutions.push_back(m_library->solutions.find(0)->second);
             }
-            else if(auto gemmProblem = dynamic_cast<const ContractionProblemGemm*>(problem))
-            {
-                m_solutions
-                    = m_library->findTopSolutions(*gemmProblem, *m_hardware, m_numSolutions);
-            }
-            else
-            {
-                throw std::runtime_error(
-                    "[TopSolutionIterator] Failed to cast to any ContractionProblem");
-            }
-            if(m_solutions.size() == 0)
+            m_currentSolutionIdx = 0;
+        }
+
+        void TopSolutionIterator::preProblemGroupedGemm(std::vector<ContractionProblem> const& problems)
+        {
+            SolutionIterator::preProblemGroupedGemm(problems);
+            m_solutions = m_library->findTopSolutionsGroupedGemm(m_problems, *m_hardware, m_numSolutions);
+            if (m_solutions.size() == 0)
             {
                 m_solutions.push_back(m_library->solutions.find(0)->second);
             }

@@ -2,7 +2,7 @@
  *
  * MIT License
  *
- * Copyright (C) 2022-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -53,7 +53,8 @@ namespace Tensile
             virtual void preBenchmarkRun() override;
             virtual void postBenchmarkRun() override;
 
-            virtual void preProblem(ContractionProblem* const problem) override;
+            virtual void preProblem(ContractionProblem const& problem) override;
+            virtual void preProblemGroupedGemm(std::vector<ContractionProblem> const& problems) override;
             virtual void postProblem() override;
 
             virtual void preSolution(ContractionSolution const& solution) override;
@@ -65,9 +66,9 @@ namespace Tensile
             virtual void   setNumWarmupRuns(size_t count) override;
             virtual void   preWarmup() override;
             virtual void   postWarmup() override;
-            virtual void   validateWarmups(std::shared_ptr<ProblemInputs> inputs,
-                                           TimingEvents const&            startEvents,
-                                           TimingEvents const&            stopEvents) override;
+            virtual void   validateWarmups(std::shared_ptr<ContractionInputs> inputs,
+                                           TimingEvents const&                startEvents,
+                                           TimingEvents const&                stopEvents) override;
 
             virtual size_t numSyncs() override
             {
@@ -88,34 +89,30 @@ namespace Tensile
                                       hipStream_t const&  stream) override
             {
             }
-            virtual void validateEnqueues(std::shared_ptr<ProblemInputs> inputs,
-                                          TimingEvents const&            startEvents,
-                                          TimingEvents const&            stopEvents) override
+            virtual void validateEnqueues(std::shared_ptr<ContractionInputs> inputs,
+                                          TimingEvents const&                startEvents,
+                                          TimingEvents const&                stopEvents) override
             {
             }
 
-            bool validate(ContractionProblemGemm const& problem,
-                          ContractionInputs const&      reference,
-                          ContractionInputs const&      result);
+            /**
+   * Helper which does dynamic_cast of inputs and m_referenceInputs
+   * to ManagedInputs and then calls ValidateTyped().
+   */
+            template <typename ManagedInputs>
+            bool validateSolutionCast(std::shared_ptr<ContractionInputs> inputs);
 
-            bool checkResults(TensorDescriptor const& tensor,
-                              void const*             refPtr,
-                              void const*             resPtr,
-                              size_t                  maxElements,
-                              bool                    isgpu,
-                              size_t                  validationStride);
+            template <typename TypedInputs>
+            bool validateTyped(TypedInputs const& reference, TypedInputs const& result);
 
-            template <typename ValidType>
-            bool checkResultsTyped(TensorDescriptor const& tensor,
-                                   ValidType const*        reference,
-                                   ValidType const*        result,
-                                   size_t                  maxElement,
-                                   bool                    isgpu,
-                                   size_t                  validationStride);
+            template <typename ManagedInputs, typename CompareValid, typename CompareInvalid>
+            bool checkResultsTyped(ManagedInputs const& reference,
+                                   ManagedInputs const& result,
+                                   CompareValid&        compareValid,
+                                   CompareInvalid&      compareInvalid);
 
-            void printTensors(ContractionProblemGemm const& problem,
-                              ContractionInputs const&      reference,
-                              ContractionInputs const&      result);
+            template <typename TypedInputs>
+            void printTensorsTyped(TypedInputs const& reference, TypedInputs const& result);
 
             virtual void finalizeReport() override;
 
@@ -125,18 +122,21 @@ namespace Tensile
             void allocateResultBuffer(size_t bytes);
 
             std::shared_ptr<DataInitialization> m_dataInit;
-            std::shared_ptr<ProblemInputs>      m_referenceInputs;
+            std::shared_ptr<ContractionInputs>  m_referenceInputs;
 
             size_t                   m_cpuResultBufferSize = 0;
             std::shared_ptr<uint8_t> m_cpuResultBuffer;
 
-            ContractionProblem* m_problem;
+            ContractionProblem m_problem;
+            std::vector<ContractionProblem> m_problems;
+            bool m_groupedGemm = false;
 
             bool m_enabled;
 
             int  m_elementsToValidate;
             bool m_printValids;
             int  m_printMax;
+            int  m_validationStride;
 
             bool m_printTensorA;
             bool m_printTensorB;
@@ -147,12 +147,12 @@ namespace Tensile
 
             int m_numBenchmarkRuns = 0;
 
-            bool   m_validatedSolution = false;
-            bool   m_errorInSolution   = false;
-            bool   m_error             = false;
-            size_t m_errorsReported    = 0;
+            bool   m_validatedSolution               = false;
+            bool   m_errorInSolution                 = false;
+            bool   m_error                           = false;
+            size_t m_errorsReported                  = 0;
 
-            bool validateSolution(std::shared_ptr<ProblemInputs> inputs);
+            bool validateSolution(std::shared_ptr<ContractionInputs> inputs);
         };
     } // namespace Client
 } // namespace Tensile

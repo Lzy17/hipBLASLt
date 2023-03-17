@@ -2,7 +2,7 @@
  *
  * MIT License
  *
- * Copyright (C) 2022-2023 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -49,9 +49,9 @@ namespace Tensile
         {
         public:
             static std::shared_ptr<SolutionIterator>
-                Default(std::shared_ptr<MasterSolutionLibrary<ContractionProblemGemm>> library,
-                        std::shared_ptr<Hardware>                                      hardware,
-                        po::variables_map const&                                       args);
+                Default(std::shared_ptr<MasterSolutionLibrary<ContractionProblem>> library,
+                        std::shared_ptr<Hardware>                                  hardware,
+                        po::variables_map const&                                   args);
 
             virtual bool needMoreBenchmarkRuns() const override
             {
@@ -72,9 +72,9 @@ namespace Tensile
             virtual void setNumWarmupRuns(size_t count) override {}
             virtual void preWarmup() override {}
             virtual void postWarmup() override {}
-            virtual void validateWarmups(std::shared_ptr<ProblemInputs> inputs,
-                                         TimingEvents const&            startEvents,
-                                         TimingEvents const&            stopEvents) override
+            virtual void validateWarmups(std::shared_ptr<ContractionInputs> inputs,
+                                         TimingEvents const&                startEvents,
+                                         TimingEvents const&                stopEvents) override
             {
             }
 
@@ -97,9 +97,9 @@ namespace Tensile
                                       hipStream_t const&  stream) override
             {
             }
-            virtual void validateEnqueues(std::shared_ptr<ProblemInputs> inputs,
-                                          TimingEvents const&            startEvents,
-                                          TimingEvents const&            stopEvents) override
+            virtual void validateEnqueues(std::shared_ptr<ContractionInputs> inputs,
+                                          TimingEvents const&                startEvents,
+                                          TimingEvents const&                stopEvents) override
             {
             }
 
@@ -114,43 +114,43 @@ namespace Tensile
             virtual std::shared_ptr<ContractionSolution> getSolution()                  = 0;
             virtual bool                                 runCurrentSolution();
 
-            virtual void preProblem(ContractionProblem* const problem) override;
+            virtual void preProblem(ContractionProblem const& problem) override;
+            virtual void preProblemGroupedGemm(std::vector<ContractionProblem> const& problems) override;
 
         protected:
-            SolutionIterator(std::shared_ptr<MasterSolutionLibrary<ContractionProblemGemm>> library,
-                             std::shared_ptr<Hardware> hardware,
-                             bool                      printWinnerOnly);
+            SolutionIterator(std::shared_ptr<MasterSolutionLibrary<ContractionProblem>> library,
+                             std::shared_ptr<Hardware>                                  hardware,
+                             bool printWinnerOnly);
 
-            virtual bool checkSolution(ContractionSolution const& solution,
-                                       ContractionProblemGemm&    problem);
             virtual bool checkSolution(ContractionSolution const& solution);
 
-            std::shared_ptr<MasterSolutionLibrary<ContractionProblemGemm>> m_library;
-            std::shared_ptr<Hardware>                                      m_hardware;
-            ContractionProblem*                                            m_problem;
-            bool                                                           m_printWinnerOnly;
+            std::shared_ptr<MasterSolutionLibrary<ContractionProblem>> m_library;
+            std::shared_ptr<Hardware>                                  m_hardware;
+            ContractionProblem                                         m_problem;
+            std::vector<ContractionProblem>                            m_problems;
+            bool                                                       m_groupedGemm = false;
+            bool                                                       m_printWinnerOnly;
         };
 
         class AllSolutionsIterator : public SolutionIterator
         {
         public:
             using RunCriteria = std::vector<std::function<bool(
-                ContractionProblemGemm const&, Hardware const&, ContractionSolution const&)>>;
+                ContractionProblem const&, Hardware const&, ContractionSolution const&)>>;
 
-            static RunCriteria CreateCriteria(
-                std::shared_ptr<MasterSolutionLibrary<ContractionProblemGemm>> library,
-                std::shared_ptr<Hardware>                                      hardware,
-                po::variables_map const&                                       args);
+            static RunCriteria
+                CreateCriteria(std::shared_ptr<MasterSolutionLibrary<ContractionProblem>> library,
+                               std::shared_ptr<Hardware>                                  hardware,
+                               po::variables_map const&                                   args);
 
-            AllSolutionsIterator(
-                std::shared_ptr<MasterSolutionLibrary<ContractionProblemGemm>> library,
-                std::shared_ptr<Hardware>                                      hardware,
-                int                                                            firstSolutionIdx,
-                int                                                            numSolutions,
-                bool                                                           printWinnerOnly,
-                RunCriteria runCriteria = RunCriteria());
+            AllSolutionsIterator(std::shared_ptr<MasterSolutionLibrary<ContractionProblem>> library,
+                                 std::shared_ptr<Hardware> hardware,
+                                 int                       firstSolutionIdx,
+                                 int                       numSolutions,
+                                 bool                      printWinnerOnly,
+                                 RunCriteria               runCriteria = RunCriteria());
 
-            virtual void preProblem(ContractionProblem* const problem) override;
+            virtual void preProblem(ContractionProblem const& problem) override;
             virtual void postProblem() override;
 
             virtual void preSolution(ContractionSolution const& solution) override;
@@ -172,12 +172,11 @@ namespace Tensile
         class BestSolutionIterator : public SolutionIterator
         {
         public:
-            BestSolutionIterator(
-                std::shared_ptr<MasterSolutionLibrary<ContractionProblemGemm>> library,
-                std::shared_ptr<Hardware>                                      hardware,
-                bool                                                           printWinnerOnly);
+            BestSolutionIterator(std::shared_ptr<MasterSolutionLibrary<ContractionProblem>> library,
+                                 std::shared_ptr<Hardware> hardware,
+                                 bool printWinnerOnly);
 
-            virtual void preProblem(ContractionProblem* const problem) override;
+            virtual void preProblem(ContractionProblem const& problem) override;
             virtual void postProblem() override;
 
             virtual void preSolution(ContractionSolution const& solution) override;
@@ -194,13 +193,13 @@ namespace Tensile
         class TopSolutionIterator : public SolutionIterator
         {
         public:
-            TopSolutionIterator(
-                std::shared_ptr<MasterSolutionLibrary<ContractionProblemGemm>> library,
-                std::shared_ptr<Hardware>                                      hardware,
-                int                                                            numSolutions,
-                bool                                                           printWinnerOnly);
+            TopSolutionIterator(std::shared_ptr<MasterSolutionLibrary<ContractionProblem>> library,
+                                std::shared_ptr<Hardware>                                  hardware,
+                                int  numSolutions,
+                                bool printWinnerOnly);
 
-            virtual void preProblem(ContractionProblem* const problem) override;
+            virtual void preProblem(ContractionProblem const& problem) override;
+            virtual void preProblemGroupedGemm(std::vector<ContractionProblem> const& problems) override;
             virtual void postProblem() override;
 
             virtual void preSolution(ContractionSolution const& solution) override;

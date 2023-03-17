@@ -34,7 +34,16 @@ namespace Tensile
     namespace Client
     {
         ClientProblemFactory::ClientProblemFactory(po::variables_map const& args)
-            : m_problemSizes(args["problem-size"].as<std::vector<std::vector<size_t>>>())
+            : m_freeIndices(args["free"].as<ContractionProblem::FreeIndices>())
+            , m_batchIndices(args["batch"].as<ContractionProblem::BatchIndices>())
+            , m_boundIndices(args["bound"].as<ContractionProblem::BoundIndices>())
+            , m_problemSizes(args["problem-size"].as<std::vector<std::vector<size_t>>>())
+            , m_aType(DataType::Float)
+            , m_bType(DataType::Float)
+            , m_cType(DataType::Float)
+            , m_dType(DataType::Float)
+            , m_alphaType(DataType::Float)
+            , m_betaType(DataType::Float)
             , m_stridedBatched(args["strided-batched"].as<bool>())
             , m_groupedGemm(args["grouped-gemm"].as<bool>())
             , m_highPrecisionAccumulate(args["high-precision-accumulate"].as<bool>())
@@ -42,109 +51,56 @@ namespace Tensile
             , m_performanceMetric(args["performance-metric"].as<PerformanceMetric>())
             , m_deterministicMode(args["deterministic-mode"].as<bool>())
             , m_cEqualsD(args["c-equal-d"].as<bool>())
+            , m_arithmeticUnit(args["arithmetic-unit"].as<ArithmeticUnit>())
+            , m_aStrides(args["a-strides"].as<std::vector<std::vector<size_t>>>())
+            , m_bStrides(args["b-strides"].as<std::vector<std::vector<size_t>>>())
+            , m_cStrides(args["c-strides"].as<std::vector<std::vector<size_t>>>())
+            , m_dStrides(args["d-strides"].as<std::vector<std::vector<size_t>>>())
+            , m_aOps(args["a-ops"].as<TensorOps>())
+            , m_bOps(args["b-ops"].as<TensorOps>())
+            , m_cOps(args["c-ops"].as<TensorOps>())
+            , m_dOps(args["d-ops"].as<TensorOps>())
+            , m_aOffset(args["offset-a"].as<size_t>())
+            , m_bOffset(args["offset-b"].as<size_t>())
+            , m_cOffset(args["offset-c"].as<size_t>())
+            , m_dOffset(args["offset-d"].as<size_t>())
             , m_biasTypeArgs(std::vector<DataType>(1, DataType::Float))
             , m_activationType(ActivationType::None)
             , m_activationHPA(false)
             , m_activationEnumArg(std::vector<ActivationType>(1, ActivationType::None))
         {
-            std::vector<bool> isComplex;
             if(args.count("problem-identifier"))
-            {
-                ContractionProblemGemm::IdentifierToIndices(
+                ContractionProblem::IdentifierToIndices(
                     args["problem-identifier"].as<std::string>(),
                     m_freeIndices,
                     m_batchIndices,
                     m_boundIndices,
-                    isComplex);
+                    m_aOps,
+                    m_bOps,
+                    m_cOps,
+                    m_dOps);
 
-                for(size_t i = 0; i < isComplex.size(); i++)
-                {
-                    if(isComplex[i])
-                    {
-                        std::runtime_error("Complex is not supported.");
-                    }
-                }
-            }
-            else
-            {
-                std::runtime_error("Currently only accepts identifier as input.");
-            }
-
-            // Default datatype
-            DataType type = DataType::None;
             if(args.count("type"))
             {
-                type = args["type"].as<DataType>();
+                m_aType = m_bType = m_cType = m_dType = m_alphaType = m_betaType
+                    = args["type"].as<DataType>();
             }
 
-            // Should add problem type in ClientParamters.ini
-            auto dummy     = ContractionProblemGemm::GetDummy();
-            auto tensors   = dummy.tensors();
-            auto constants = dummy.constants();
-            m_tensorTypes.resize(tensors.size());
-            m_tensorStrides.resize(tensors.size());
-            m_tensorOffsets.resize(tensors.size());
-            m_constantTypes.resize(constants.size());
-            m_constantValues.resize(constants.size());
-            // Get types and values from the information from ContractionProblem
-            // May contain useless information for ClientProblemFactory
-            // Get tensor types
-            for(size_t i = 0; i < tensors.size(); i++)
-            {
-                std::string typeName = tensors[i].getName() + "-type";
-                if(args.count(typeName))
-                {
-                    m_tensorTypes[i] = args[typeName].as<DataType>();
-                }
-                else
-                {
-                    m_tensorTypes[i] = type;
-                }
-                std::string strideName = tensors[i].getName() + "-strides";
-                if(args.count(strideName))
-                {
-                    m_tensorStrides[i] = args[strideName].as<std::vector<std::vector<size_t>>>();
-                }
-                else
-                {
-                    m_tensorStrides[i] = std::vector<std::vector<size_t>>();
-                }
-                std::string offsetName = "offset-" + tensors[i].getName();
-                if(args.count(offsetName))
-                {
-                    m_tensorOffsets[i] = args[offsetName].as<size_t>();
-                }
-                else
-                {
-                    m_tensorOffsets[i] = 0;
-                }
-            }
-            // Get constant types
-            for(size_t i = 0; i < constants.size(); i++)
-            {
-                std::string typeName = constants[i].name + "-type";
-                if(args.count(typeName))
-                {
-                    m_constantTypes[i] = args[typeName].as<DataType>();
-                }
-                else
-                {
-                    m_constantTypes[i] = type;
-                }
-                std::string valueName = "init-" + constants[i].name;
-                if(args.count(valueName))
-                {
-                    m_constantValues[i]
-                        = DataInitialization::getValue<double>(args[valueName].as<InitMode>());
-                }
-                else
-                {
-                    m_constantValues[i] = 0;
-                }
-            }
+            if(args.count("a-type"))
+                m_aType = args["a-type"].as<DataType>();
+            if(args.count("b-type"))
+                m_bType = args["b-type"].as<DataType>();
+            if(args.count("c-type"))
+                m_cType = args["c-type"].as<DataType>();
+            if(args.count("d-type"))
+                m_dType = args["d-type"].as<DataType>();
+            if(args.count("alpha-type"))
+                m_alphaType = args["alpha-type"].as<DataType>();
+            if(args.count("beta-type"))
+                m_betaType = args["beta-type"].as<DataType>();
 
-            if(args.count("use-e"))
-                m_useE = args["use-e"].as<bool>();
+            m_beta  = DataInitialization::getValue<double>(args["init-beta"].as<InitMode>());
+            m_alpha = DataInitialization::getValue<double>(args["init-alpha"].as<InitMode>());
 
             if(args.count("bias-type-args"))
                 m_biasTypeArgs = args["bias-type-args"].as<std::vector<DataType>>();
@@ -162,127 +118,93 @@ namespace Tensile
                 m_useScaleD = args["use-scaleD"].as<bool>();
             if(args.count("max-workspace-size"))
                 m_maxWorkspaceSize = args["max-workspace-size"].as<size_t>();
-
-            if(m_groupedGemm)
-            {
-                auto problems = std::make_shared<ContractionProblemGroupedGemm>();
-                createProblems(problems->gemms);
-                m_problems.push_back(static_pointer_cast<ContractionProblem>(problems));
-            }
-            else
-            {
-                std::vector<ContractionProblemGemm> v;
-                createProblems(v);
-                for(auto& it : v)
-                {
-                    auto problem     = std::make_shared<ContractionProblemGemm>();
-                    (*problem.get()) = it;
-                    m_problems.push_back(static_pointer_cast<ContractionProblem>(problem));
-                }
-            }
+            m_problems = createProblems();
         }
 
         ClientProblemFactory::~ClientProblemFactory() = default;
 
-        std::vector<std::shared_ptr<ContractionProblem>> const&
-            ClientProblemFactory::problems() const
+        std::vector<ContractionProblem> const& ClientProblemFactory::problems() const
         {
             return m_problems;
         }
 
-        void ClientProblemFactory::createProblems(std::vector<ContractionProblemGemm>& rv)
+        std::vector<ContractionProblem> ClientProblemFactory::createProblems()
         {
-            rv.clear();
-            int biasSize       = std::max(1, (int)m_biasTypeArgs.size());
-            int activationSize = std::max(1, (int)m_activationEnumArg.size());
+            std::vector<ContractionProblem> rv;
+            int                             biasSize = std::max(1, (int)m_biasTypeArgs.size());
+            int activationSize                       = std::max(1, (int)m_activationEnumArg.size());
             rv.reserve(m_problemSizes.size() * activationSize);
 
-            std::vector<size_t> aStrides, bStrides, cStrides, dStrides, eStrides;
+            std::vector<size_t> aStrides, bStrides, cStrides, dStrides;
 
-            if(m_tensorStrides[ContractionProblemGemm::TENSOR::A].size() == 1)
-                aStrides = m_tensorStrides[ContractionProblemGemm::TENSOR::A][0];
-            if(m_tensorStrides[ContractionProblemGemm::TENSOR::B].size() == 1)
-                bStrides = m_tensorStrides[ContractionProblemGemm::TENSOR::B][0];
-            if(m_tensorStrides[ContractionProblemGemm::TENSOR::C].size() == 1)
-                cStrides = m_tensorStrides[ContractionProblemGemm::TENSOR::C][0];
-            if(m_tensorStrides[ContractionProblemGemm::TENSOR::D].size() == 1)
-                dStrides = m_tensorStrides[ContractionProblemGemm::TENSOR::D][0];
-            if(m_tensorStrides[ContractionProblemGemm::TENSOR::E].size() == 1)
-                eStrides = m_tensorStrides[ContractionProblemGemm::TENSOR::E][0];
-
+            if(m_aStrides.size() == 1)
+                aStrides = m_aStrides[0];
+            if(m_bStrides.size() == 1)
+                bStrides = m_bStrides[0];
+            if(m_cStrides.size() == 1)
+                cStrides = m_cStrides[0];
+            if(m_dStrides.size() == 1)
+                dStrides = m_dStrides[0];
             for(int k = 0; k < biasSize; k++)
             {
                 for(int j = 0; j < activationSize; j++)
                 {
                     for(int i = 0; i < m_problemSizes.size(); i++)
                     {
-                        if(m_tensorStrides[ContractionProblemGemm::TENSOR::A].size()
-                           == m_problemSizes.size())
-                            aStrides = m_tensorStrides[ContractionProblemGemm::TENSOR::A][i];
-                        if(m_tensorStrides[ContractionProblemGemm::TENSOR::B].size()
-                           == m_problemSizes.size())
-                            bStrides = m_tensorStrides[ContractionProblemGemm::TENSOR::B][i];
-                        if(m_tensorStrides[ContractionProblemGemm::TENSOR::C].size()
-                           == m_problemSizes.size())
-                            cStrides = m_tensorStrides[ContractionProblemGemm::TENSOR::C][i];
-                        if(m_tensorStrides[ContractionProblemGemm::TENSOR::D].size()
-                           == m_problemSizes.size())
-                            dStrides = m_tensorStrides[ContractionProblemGemm::TENSOR::D][i];
-                        if(m_tensorStrides[ContractionProblemGemm::TENSOR::E].size()
-                           == m_problemSizes.size())
-                            eStrides = m_tensorStrides[ContractionProblemGemm::TENSOR::E][i];
+                        if(m_aStrides.size() == m_problemSizes.size())
+                            aStrides = m_aStrides[i];
+                        if(m_bStrides.size() == m_problemSizes.size())
+                            bStrides = m_bStrides[i];
+                        if(m_cStrides.size() == m_problemSizes.size())
+                            cStrides = m_cStrides[i];
+                        if(m_dStrides.size() == m_problemSizes.size())
+                            dStrides = m_dStrides[i];
 
-                        rv.push_back(ContractionProblemGemm::FromIndexSizes(
-                            m_freeIndices,
-                            m_batchIndices,
-                            m_boundIndices,
-                            m_problemSizes[i],
-                            m_tensorTypes[ContractionProblemGemm::TENSOR::A],
-                            aStrides,
-                            m_tensorOffsets[ContractionProblemGemm::TENSOR::A],
-                            m_tensorTypes[ContractionProblemGemm::TENSOR::B],
-                            bStrides,
-                            m_tensorOffsets[ContractionProblemGemm::TENSOR::B],
-                            m_tensorTypes[ContractionProblemGemm::TENSOR::C],
-                            cStrides,
-                            m_tensorOffsets[ContractionProblemGemm::TENSOR::C],
-                            m_tensorTypes[ContractionProblemGemm::TENSOR::D],
-                            dStrides,
-                            m_tensorOffsets[ContractionProblemGemm::TENSOR::D],
-                            m_constantValues[ContractionProblemGemm::CONST::BETA]));
+                        rv.push_back(ContractionProblem::FromIndexSizes(m_freeIndices,
+                                                                        m_batchIndices,
+                                                                        m_boundIndices,
+                                                                        m_problemSizes[i],
+                                                                        m_aType,
+                                                                        aStrides,
+                                                                        m_aOps,
+                                                                        m_aOffset,
+                                                                        m_bType,
+                                                                        bStrides,
+                                                                        m_bOps,
+                                                                        m_bOffset,
+                                                                        m_cType,
+                                                                        cStrides,
+                                                                        m_cOps,
+                                                                        m_cOffset,
+                                                                        m_dType,
+                                                                        dStrides,
+                                                                        m_dOps,
+                                                                        m_dOffset,
+                                                                        m_beta));
 
-                        rv.back().setAlphaRestriction(toScalarValueEnum(
-                            m_constantValues[ContractionProblemGemm::CONST::ALPHA]));
+                        rv.back().setAlphaRestriction(toScalarValueEnum(m_alpha));
                         rv.back().setCEqualsD(m_cEqualsD);
-                        rv.back().setAlphaType(
-                            m_constantTypes[ContractionProblemGemm::CONST::ALPHA]);
-                        rv.back().setBetaType(m_constantTypes[ContractionProblemGemm::CONST::BETA]);
+                        rv.back().setAlphaType(m_alphaType);
+                        rv.back().setBetaType(m_betaType);
                         rv.back().setStridedBatched(m_stridedBatched);
+                        rv.back().setGroupedGemm(m_groupedGemm);
                         rv.back().setHighPrecisionAccumulate(m_highPrecisionAccumulate);
                         rv.back().setUseBias(m_useBias);
-                        rv.back().setUseE(m_useE);
+                        rv.back().setUseScaleD(m_useScaleD);
                         rv.back().setKernelLanguage(m_kernelLanguage);
                         rv.back().setPerformanceMetric(m_performanceMetric);
                         rv.back().setDeterministicMode(m_deterministicMode);
+                        rv.back().setArithmeticUnit(m_arithmeticUnit);
                         rv.back().setFp16AltImpl(m_fp16AltImpl);
                         rv.back().setActivationType(m_activationType);
                         rv.back().setWorkspaceSize(m_maxWorkspaceSize);
                         if(k < m_biasTypeArgs.size())
                         {
-                            rv.back().setBias(m_biasTypeArgs[k], rv.back().d().sizes()[0]);
+                            rv.back().setBiasType(m_biasTypeArgs[k]);
                         }
                         else
                         {
-                            rv.back().setBias(DataType::None, 0);
-                        }
-                        if(m_useE)
-                        {
-                            bool isEOutput = true;
-                            rv.back().setE(m_tensorTypes[ContractionProblemGemm::TENSOR::E],
-                                           rv.back().d().sizes(),
-                                           eStrides,
-                                           m_tensorOffsets[ContractionProblemGemm::TENSOR::E],
-                                           isEOutput);
+                            rv.back().setBiasType(DataType::None);
                         }
                         if(j < m_activationEnumArg.size())
                         {
@@ -293,14 +215,11 @@ namespace Tensile
                             rv.back().setActivationType(m_activationType);
                         }
                         rv.back().setActivationHPA(m_activationHPA);
-                        rv.back().setUseScaleD(m_useScaleD);
-                        rv.back().setScaleD(m_constantTypes[ContractionProblemGemm::CONST::ALPHA],
-                                            rv.back().d().sizes()[0]);
-
-                        rv.back().setGroupedGemm(m_groupedGemm);
                     }
                 }
             }
+
+            return rv;
         }
     } // namespace Client
 } // namespace Tensile
