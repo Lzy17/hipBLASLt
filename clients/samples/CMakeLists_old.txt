@@ -24,18 +24,13 @@
 add_executable( example_hipblaslt_preference example_hipblaslt_preference.cpp)
 add_executable( example_hipblaslt_groupedgemm example_hipblaslt_groupedgemm.cpp)
 
-add_executable( example_hipblaslt_demo example_hipblaslt_demo.cpp)
-
-target_include_directories(example_hipblaslt_demo
-	PRIVATE /usr/include/x86_64-linux-gnu/mpich)
-
-set( sample_list_tensile example_hipblaslt_preference example_hipblaslt_groupedgemm example_hipblaslt_demo)
+set( sample_list_tensile example_hipblaslt_preference example_hipblaslt_groupedgemm)
 
 set( sample_list_all ${sample_list_tensile})
 set( sample_list_hip_device ${sample_list_tensile} )
 
 foreach( exe ${sample_list_all} )
-  target_link_libraries( ${exe} PRIVATE roc::hipblaslt mpich rccl)
+  target_link_libraries( ${exe} PRIVATE roc::hipblaslt )
 
   set_target_properties( ${exe} PROPERTIES
     CXX_STANDARD 14
