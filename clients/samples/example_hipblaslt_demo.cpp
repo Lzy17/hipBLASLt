@@ -793,7 +793,7 @@ void test_hipblaslt(hipblasDatatype_t  in_out_datatype,
             matmul, HIPBLASLT_MATMUL_DESC_BIAS_POINTER, &d_bias, sizeof(void*)));
     if(enable_scaleD)
         CHECK_HIPBLASLT_ERROR(hipblasLtMatmulDescSetAttribute(
-            matmul, HIPBLASLT_MATMUL_DESC_D_SCALE_VECTOR_POINTER, &d_scaleD, sizeof(void*)));
+            matmul, HIPBLASLT_MATMUL_DESC_D_SCALE_POINTER, &d_scaleD, sizeof(void*)));
 
     // Set User Preference attributes
     CHECK_HIPBLASLT_ERROR(hipblasLtMatmulPreferenceCreate(&pref));
