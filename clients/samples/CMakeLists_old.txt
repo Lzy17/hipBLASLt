@@ -1,5 +1,5 @@
 # ########################################################################
-# Copyright (C) 2022 Advanced Micro Devices, Inc.
+# Copyright (C) 2022-2023 Advanced Micro Devices, Inc.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,22 +23,19 @@
 
 add_executable( example_hipblaslt_preference example_hipblaslt_preference.cpp)
 add_executable( example_hipblaslt_groupedgemm example_hipblaslt_groupedgemm.cpp)
+add_executable( example_hipblaslt_groupedgemm_fixed_mk example_hipblaslt_groupedgemm_fixed_mk.cpp)
+add_executable( example_hipblaslt_groupedgemm_get_all_algos example_hipblaslt_groupedgemm_get_all_algos.cpp)
+add_executable( example_hipblaslt_algo_index example_hipblaslt_algo_index.cpp)
 
-add_executable( example_hipblaslt_demo example_hipblaslt_demo.cpp)
+set( sample_list_all example_hipblaslt_preference example_hipblaslt_groupedgemm example_hipblaslt_groupedgemm_fixed_mk example_hipblaslt_groupedgemm_get_all_algos example_hipblaslt_algo_index)
 
-target_include_directories(example_hipblaslt_demo
-	PRIVATE /usr/include/x86_64-linux-gnu/mpich)
-
-set( sample_list_tensile example_hipblaslt_preference example_hipblaslt_groupedgemm example_hipblaslt_demo)
-
-set( sample_list_all ${sample_list_tensile})
-set( sample_list_hip_device ${sample_list_tensile} )
+set( sample_list_hip_device ${sample_list_all} )
 
 foreach( exe ${sample_list_all} )
-  target_link_libraries( ${exe} PRIVATE roc::hipblaslt mpich rccl)
+  target_link_libraries( ${exe} PRIVATE roc::hipblaslt )
 
   set_target_properties( ${exe} PROPERTIES
-    CXX_STANDARD 14
+    CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF
     RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging"
@@ -59,11 +56,15 @@ foreach( exe ${sample_list_all} )
 
   if( CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     # GCC or hip-clang needs specific flags to turn on f16c intrinsics
-    target_compile_options( ${exe} PRIVATE -mf16c )
+    target_compile_options( ${exe} PRIVATE -mf16c -Wno-unused-result )
     target_compile_definitions( ${exe} PRIVATE ROCBLASLT_INTERNAL_API )
   endif( )
 endforeach( )
 
 foreach( exe ${sample_list_hip_device} )
   target_link_libraries( ${exe} PRIVATE hip::device )
+endforeach( )
+
+foreach( exe ${sample_list_all} )
+  rocm_install(TARGETS ${exe} COMPONENT samples)
 endforeach( )
